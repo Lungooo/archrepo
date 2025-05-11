@@ -1,0 +1,66 @@
+--- directory-listing.php	2025-05-11 15:50:32.350061798 +0200
++++ directory-listing-new.php	2025-05-11 15:48:46.852626664 +0200
+@@ -20,11 +20,26 @@
+ // Only the script directory
+ $path = getcwd();
+ 
+-// Path label can be overridden by a file named .dl-pathlabel
+-$pathlabel = file_exists('.dl-pathlabel') ? file_get_contents('.dl-pathlabel') : $path ;
+-
+-// Full path (Enable this when running from a live server)
+-//$path = trim(getcwd() . str_replace('/', DIRECTORY_SEPARATOR, $_SERVER['REQUEST_URI']), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
++// Path label can be overridden by a command line option or a file named .dl-pathlabel
++$pathlabel = $path;
++if (RUNNING_IN_CONSOLE) {
++    $cli_pathlabel = null;
++    foreach ($argv as $i => $arg) {
++        if ($i > 0 && ($arg === '--pathlabel' || $arg === '-l') && isset($argv[$i+1])) {
++            $cli_pathlabel = $argv[$i+1];
++            break;
++        }
++    }
++    if ($cli_pathlabel !== null) {
++        $pathlabel = $cli_pathlabel;
++    } elseif (file_exists('.dl-pathlabel')) {
++        $pathlabel = file_get_contents('.dl-pathlabel');
++    }
++} else {
++    if (file_exists('.dl-pathlabel')) {
++        $pathlabel = file_get_contents('.dl-pathlabel');
++    }
++}
+ 
+ $img = [
+     'blank.gif' => 'data:image/gif;base64,R0lGODlhFAAWAKEAAP///8z//wAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAACE4yPqcvtD6OctNqLs968+w+GSQEAOw==',
+@@ -38,9 +53,18 @@
+ 
+ function run() {
+     global $path;
+-    foreach (glob($path . DIRECTORY_SEPARATOR .'*') as $file) {
+-        // ignore dotfiles
+-        if (substr(basename($file), 0, 1) === '.') {
++    $entries = glob($path . DIRECTORY_SEPARATOR .'*');
++    // Sort: directories first, then files, both alphabetically (case-insensitive)
++    usort($entries, function($a, $b) {
++        $isDirA = is_dir($a);
++        $isDirB = is_dir($b);
++        if ($isDirA && !$isDirB) return -1;
++        if (!$isDirA && $isDirB) return 1;
++        return strcasecmp(basename($a), basename($b));
++    });
++    foreach ($entries as $file) {
++        // ignore dotfiles and this script itself
++        if (substr(basename($file), 0, 1) === '.' || basename($file) === 'directory-listing.php') {
+             continue;
+         }
+         makeRow($file);
+@@ -121,7 +145,9 @@
+     <table>
+         <thead><tr><th valign="top"><img src="<?php echo $img['blank.gif'] ?>" alt="[ICO]"><th>Name</th><th>Last modified</th><th>Size</th><th>Description</th></tr><tr><th colspan="5"><hr></th></tr></thead>
+         <tbody>
++        <?php if ($pathlabel !== '/') { ?>
+         <tr><td valign="top"><img src="<?php echo $img['back.gif'] ?>" alt="[PARENTDIR]"></td><td><a href="../">Parent Directory</a></td><td>&nbsp;</td><td align="right"> - </td><td>&nbsp;</td></tr>
++        <?php } ?>
+         <?php run() ?>
+         </tbody>
+         <tfoot><tr><th colspan="5"><hr></th></tr></tfoot>
